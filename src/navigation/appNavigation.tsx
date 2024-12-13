@@ -4,19 +4,18 @@ import { NavigationContainer } from '@react-navigation/native';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import HomeScreen from '../screens/HomeScreen';
-import WelcomeScreen from '../screens/WelcomeScreen';
+import TransactionsScreen from '../screens/TransactionsScreens'; // Importa la pantalla de transacciones
 
 const Stack = createNativeStackNavigator();
 
 const AppNavigation = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Welcome">
-        <Stack.Screen name='Welcome' component={WelcomeScreen} options={{headerShown:false}}></Stack.Screen>
+      <Stack.Navigator initialRouteName="Login">
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Register" component={SignUpScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        {/* Aquí se agregarán más pantallas como Register y Home */}
+        <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

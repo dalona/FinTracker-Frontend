@@ -1,21 +1,28 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import api from '../api/api';
 
-export const AuthContext = createContext({});
+// Define el tipo del contexto
+interface AuthContextType {
+  user: any | null; // Puedes ajustar este tipo según tu modelo de usuario
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  loading: boolean;
+}
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadUser = async () => {
       const token = await AsyncStorage.getItem('token');
       if (token) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        api.defaults.headers.Authorization = `Bearer ${token}`;
         try {
-          // Aquí podrías validar el token en tu backend si es necesario
-          const { data } = await axios.get('https://ahorrosmart-finsyncbc-production.up.railway.app/api/validate-token');
+          const { data } = await api.get('/api/validate-token'); // Cambia esta ruta según tu backend
           setUser(data.user);
         } catch (error) {
           console.error('Token inválido', error);
@@ -29,18 +36,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const { data } = await axios.post('https://ahorrosmart-finsyncbc-production.up.railway.app/api/auth/login', {
-      email,
-      password,
-    });
+    const { data } = await api.post('/auth/login', { email, password });
     await AsyncStorage.setItem('token', data.token);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+    api.defaults.headers.Authorization = `Bearer ${data.token}`;
     setUser(data.user);
   };
 
   const logout = async () => {
     await AsyncStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+    delete api.defaults.headers.Authorization;
     setUser(null);
   };
 
@@ -51,3 +55,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth debe ser usado dentro de un AuthProvider');
+  }
+  return context;
+};

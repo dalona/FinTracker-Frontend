@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 
-const HomeScreen = () => {
+const HomeScreen = ({ navigation }: { navigation: any }) => {
   const [balance, setBalance] = useState({
     totalBalance: 7783.0,
     totalExpense: 1187.4,
@@ -47,7 +47,9 @@ const HomeScreen = () => {
         </View>
         <View style={styles.insightCard}>
           <Text style={styles.insightTitle}>Food Last Week</Text>
-          <Text style={styles.insightValue}>{balance.foodLastWeek.toFixed(2)}</Text>
+          <Text style={styles.insightValue}>
+            {balance.foodLastWeek.toFixed(2)}
+          </Text>
         </View>
       </View>
 
@@ -63,11 +65,21 @@ const HomeScreen = () => {
                 { color: transaction.amount < 0 ? '#FF0000' : '#333' },
               ]}
             >
-              {transaction.amount < 0 ? `- $${Math.abs(transaction.amount).toFixed(2)}` : `$${transaction.amount.toFixed(2)}`}
+              {transaction.amount < 0
+                ? `- $${Math.abs(transaction.amount).toFixed(2)}`
+                : `$${transaction.amount.toFixed(2)}`}
             </Text>
           </View>
         ))}
       </View>
+
+      {/* Botón para ir a la pantalla de transacciones */}
+      <TouchableOpacity
+        style={styles.transactionButton}
+        onPress={() => navigation.navigate('Transactions')}
+      >
+        <Text style={styles.transactionButtonText}>View Transactions</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -181,6 +193,18 @@ const styles = StyleSheet.create({
   },
   transactionValue: {
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  transactionButton: {
+    marginTop: 20,
+    backgroundColor: '#4CAF50',
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  transactionButtonText: {
+    color: '#fff',
+    fontSize: 18,
     fontWeight: 'bold',
   },
 });
