@@ -3,134 +3,212 @@ import {
   View,
   Text,
   FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
   TouchableOpacity,
+  StyleSheet,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import api from '../api/api';
-import Icon from 'react-native-vector-icons/FontAwesome'; // Cambia FontAwesome a la fuente que prefieras
 
 interface Transaction {
   id: number;
   name: string;
-  type: 'Income' | 'Expense';
   amount: number;
-  date: string;
-  note?: string;
+  type: 'Income' | 'Expense';
+}
+
+interface Category {
+  id: number;
+  category: string;
 }
 
 const TransactionsScreen = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [newCategory, setNewCategory] = useState(''); // Campo para nueva categoría
+  const [modalVisible, setModalVisible] = useState(false);
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState<'Income' | 'Expense'>('Income');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'All' | 'Income' | 'Expense'>('All');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const response = await api.get('/transactions');
-        setTransactions(response.data.data);
-      } catch (error) {
-        Alert.alert('Error', 'No se pudieron cargar las transacciones.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchTransactions();
+    fetchCategories();
   }, []);
 
-  const filteredTransactions = transactions.filter((transaction) => {
-    if (filter === 'All') return true;
-    return transaction.type === filter;
-  });
-
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    if (sortOrder === 'asc') {
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/transactions');
+      setTransactions(response.data.data);
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to fetch transactions');
+    } finally {
+      setLoading(false);
     }
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
-  });
+  };
 
-  const renderItem = ({ item }: { item: Transaction }) => (
-    <View style={styles.transactionItem}>
-      <Text style={styles.transactionName}>{item.name}</Text>
-      <Text
-        style={[
-          styles.transactionAmount,
-          { color: item.type === 'Income' ? '#4CAF50' : '#FF0000' },
-        ]}
-      >
-        {item.type === 'Income' ? `+ $${item.amount}` : `- $${item.amount}`}
-      </Text>
-    </View>
-  );
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categorize-budget');
+      setCategories(response.data?.data || []);
+    } catch (error: any) {
+      console.error('Error al cargar categorías:', error);
+    }
+  };
+
+  const addCategory = async () => {
+    if (!newCategory.trim()) {
+      Alert.alert('Error', 'Category name cannot be empty');
+      return;
+    }
+    try {
+      const response = await api.post('/categorize-budget', {
+        category: newCategory,
+        amount: 1000, // Cantidad por defecto
+        date: new Date().toISOString().split('T')[0],
+      });
+      await fetchCategories(); // Recargar categorías después de agregar
+      setSelectedCategory(response.data.data.id); // Seleccionar automáticamente la nueva categoría
+      setNewCategory(''); // Limpiar el campo
+    } catch (error: any) {
+      console.error('Error al agregar categoría:', error);
+      Alert.alert('Error', 'Failed to add category');
+    }
+  };
+
+  const addTransaction = async () => {
+    if (!name || !amount || !selectedCategory) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      const newTransaction = {
+        name,
+        amount: parseFloat(amount),
+        type,
+        categorizedBudgetId: selectedCategory,
+        date: new Date().toISOString().split('T')[0],
+      };
+
+      const response = await api.post('/transactions', newTransaction);
+      setTransactions((prev) => [...prev, response.data.data]);
+      resetForm();
+      setModalVisible(false);
+    } catch (error: any) {
+      console.error('Error al agregar transacción:', error);
+      Alert.alert('Error', 'Failed to add transaction');
+    }
+  };
+
+  const resetForm = () => {
+    setName('');
+    setAmount('');
+    setType('Income');
+    setSelectedCategory('');
+  };
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>Transactions</Text>
+
       {loading ? (
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text>Loading...</Text>
       ) : (
-        <>
-          {/* Botones de Filtro */}
-          <View style={styles.filterContainer}>
-            <TouchableOpacity
+        <FlatList
+          data={transactions}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View
               style={[
-                styles.filterButton,
-                filter === 'All' && styles.activeFilterButton,
+                styles.transactionItem,
+                item.type === 'Expense' ? styles.expense : styles.income,
               ]}
-              onPress={() => setFilter('All')}
             >
-              <Icon name="list" size={16} color={filter === 'All' ? '#fff' : '#333'} />
-              <Text style={styles.filterButtonText}>All</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filter === 'Income' && styles.activeFilterButton,
-              ]}
-              onPress={() => setFilter('Income')}
-            >
-              <Icon name="arrow-up" size={16} color={filter === 'Income' ? '#fff' : '#333'} />
-              <Text style={styles.filterButtonText}>Income</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filter === 'Expense' && styles.activeFilterButton,
-              ]}
-              onPress={() => setFilter('Expense')}
-            >
-              <Icon name="arrow-down" size={16} color={filter === 'Expense' ? '#fff' : '#333'} />
-              <Text style={styles.filterButtonText}>Expense</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Botón de Ordenamiento */}
-          <TouchableOpacity
-            style={styles.sortButton}
-            onPress={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-          >
-            <Icon
-              name={sortOrder === 'asc' ? 'sort-amount-asc' : 'sort-amount-desc'}
-              size={20}
-              color="#333"
-            />
-            <Text style={styles.sortButtonText}>
-              {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Lista de Transacciones */}
-          <FlatList
-            data={sortedTransactions}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContainer}
-          />
-        </>
+              <Text style={styles.transactionText}>
+                {item.name} - ${item.amount} ({item.type})
+              </Text>
+            </View>
+          )}
+        />
       )}
+
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => setModalVisible(true)}
+      >
+        <Text style={styles.addButtonText}>+ Add Transaction</Text>
+      </TouchableOpacity>
+
+      {/* Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>New Transaction</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Transaction Name"
+              value={name}
+              onChangeText={setName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Amount"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+            />
+
+            <Text style={styles.label}>Select Category</Text>
+            <Picker
+              selectedValue={selectedCategory}
+              onValueChange={(value) => setSelectedCategory(value)}
+            >
+              <Picker.Item label="Select Category" value="" />
+              {categories.map((cat) => (
+                <Picker.Item key={cat.id} label={cat.category} value={cat.id} />
+              ))}
+            </Picker>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Or Add New Category"
+              value={newCategory}
+              onChangeText={setNewCategory}
+            />
+            <TouchableOpacity style={styles.addCategoryButton} onPress={addCategory}>
+              <Text style={styles.addCategoryButtonText}>+ Add New Category</Text>
+            </TouchableOpacity>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addButtonModal}
+                onPress={addTransaction}
+              >
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -138,66 +216,107 @@ const TransactionsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EAF9F5',
+    backgroundColor: '#F9F9F9',
     padding: 20,
   },
-  filterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 10,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#C8F7C5',
-    borderRadius: 10,
-    padding: 10,
-    marginHorizontal: 5,
-  },
-  filterButtonText: {
-    marginLeft: 5,
-    fontSize: 14,
+  title: {
+    fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 20,
     color: '#333',
-  },
-  activeFilterButton: {
-    backgroundColor: '#4CAF50',
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sortButtonText: {
-    marginLeft: 5,
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  listContainer: {
-    paddingBottom: 20,
   },
   transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     padding: 15,
+    borderRadius: 8,
     marginBottom: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    elevation: 2,
   },
-  transactionName: {
+  income: {
+    borderLeftWidth: 5,
+    borderLeftColor: '#4CAF50', // Verde para ingresos
+  },
+  expense: {
+    borderLeftWidth: 5,
+    borderLeftColor: '#FF6347', // Rojo para gastos
+  },
+  transactionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  addButton: {
+    backgroundColor: '#007BFF',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    width: '90%',
+    borderRadius: 8,
+    padding: 20,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  label: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 5,
   },
-  transactionAmount: {
-    fontSize: 16,
+  addCategoryButton: {
+    backgroundColor: '#28a745', // Verde para el botón de agregar categoría
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+  },
+  addCategoryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  cancelButton: {
+    padding: 10,
+  },
+  cancelText: {
+    color: '#FF0000',
     fontWeight: 'bold',
   },
+  addButtonModal: {
+    backgroundColor: '#4CAF50', // Verde para el botón de agregar
+    padding: 10,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
 });
+
 
 export default TransactionsScreen;
